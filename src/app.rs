@@ -123,20 +123,11 @@ impl eframe::App for TemplateApp {
         egui::CentralPanel::default().show(ctx, |ui| {
             self.options_ui(ui);
 
-            let format_axis = |n, _a: &_| format!("{n:.3} m/s");
             let plot = Plot::new("plot")
                 .view_aspect(1.0)
                 .data_aspect(1.0)
-                .x_axis_formatter(format_axis)
-                .y_axis_formatter(format_axis)
-                .label_formatter(|_name, point| {
-                    format!(
-                        "v₁ = {v1:.3} m/s\nv₂ = {v2:.3} m/s",
-                        v1 = point.x,
-                        v2 = point.y
-                    )
-                })
                 .legend(Legend::default());
+
             plot.show(ui, |plot_ui| {
                 plot_ui.line(
                     self.preserved_momentum()
