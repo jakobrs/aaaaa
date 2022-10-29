@@ -1,9 +1,8 @@
 use egui::{
-    plot::{Line, Plot, PlotPoints},
+    plot::{Legend, Line, Plot, PlotPoints},
     Color32, Ui,
 };
 
-/// We derive Deserialize/Serialize so we can persist app state on shutdown.
 pub struct TemplateApp {
     m0: f64,
     v0: f64,
@@ -23,7 +22,6 @@ impl Default for TemplateApp {
 }
 
 impl TemplateApp {
-    /// Called once before the first frame.
     pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
         Default::default()
     }
@@ -38,12 +36,12 @@ impl TemplateApp {
                 ui.vertical(|ui| {
                     ui.label("Object 1:");
                     ui.horizontal(|ui| {
-                        ui.label("Mass:");
                         ui.add(egui::Slider::new(m0, -5.0..=5.0));
+                        ui.label("Mass");
                     });
                     ui.horizontal(|ui| {
-                        ui.label("Velocity:");
                         ui.add(egui::Slider::new(v0, -5.0..=5.0));
+                        ui.label("Velocity");
                     });
                 });
             });
@@ -51,12 +49,12 @@ impl TemplateApp {
                 ui.vertical(|ui| {
                     ui.label("Object 2:");
                     ui.horizontal(|ui| {
-                        ui.label("Mass:");
                         ui.add(egui::Slider::new(m1, -5.0..=5.0));
+                        ui.label("Mass");
                     });
                     ui.horizontal(|ui| {
-                        ui.label("Velocity:");
                         ui.add(egui::Slider::new(v1, -5.0..=5.0));
+                        ui.label("Velocity");
                     });
                 });
             });
@@ -125,14 +123,28 @@ impl eframe::App for TemplateApp {
         egui::CentralPanel::default().show(ctx, |ui| {
             self.options_ui(ui);
 
-            let mut plot = Plot::new("plot");
-            plot = plot.view_aspect(1.0);
-            plot = plot.data_aspect(1.0);
+            let format_axis = |n, _a: &_| format!("{n} m/s");
+            let plot = Plot::new("plot")
+                .view_aspect(1.0)
+                .data_aspect(1.0)
+                .x_axis_formatter(format_axis)
+                .y_axis_formatter(format_axis)
+                .label_formatter(|_name, point| {
+                    format!(
+                        "v₁ = {v1:.3} m/s\nv₂ = {v2:.3} m/s",
+                        v1 = point.x,
+                        v2 = point.y
+                    )
+                })
+                .legend(Legend::default());
             plot.show(ui, |plot_ui| {
-                plot_ui.line(self.preserved_momentum());
+                plot_ui.line(
+                    self.preserved_momentum()
+                        .name("States with preserved momentum"),
+                );
                 let (upper, lower) = self.preserved_energy();
-                plot_ui.line(upper);
-                plot_ui.line(lower);
+                plot_ui.line(upper.name("States with preserved energy"));
+                plot_ui.line(lower.name("States with preserved energy"));
             })
         });
 
