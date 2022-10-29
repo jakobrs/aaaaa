@@ -123,7 +123,7 @@ impl eframe::App for TemplateApp {
         egui::CentralPanel::default().show(ctx, |ui| {
             self.options_ui(ui);
 
-            let format_axis = |n, _a: &_| format!("{n} m/s");
+            let format_axis = |n, _a: &_| format!("{n:.3} m/s");
             let plot = Plot::new("plot")
                 .view_aspect(1.0)
                 .data_aspect(1.0)
