@@ -1,116 +1,146 @@
+use egui::{
+    plot::{Line, Plot, PlotPoints},
+    Color32, Ui,
+};
+
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
 pub struct TemplateApp {
-    // Example stuff:
-    label: String,
-
-    // this how you opt-out of serialization of a member
-    #[serde(skip)]
-    value: f32,
+    m0: f64,
+    v0: f64,
+    m1: f64,
+    v1: f64,
 }
 
 impl Default for TemplateApp {
     fn default() -> Self {
         Self {
-            // Example stuff:
-            label: "Hello World!".to_owned(),
-            value: 2.7,
+            m0: 0.,
+            v0: 0.,
+            m1: 0.,
+            v1: 0.,
         }
     }
 }
 
 impl TemplateApp {
     /// Called once before the first frame.
-    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        // This is also where you can customized the look at feel of egui using
-        // `cc.egui_ctx.set_visuals` and `cc.egui_ctx.set_fonts`.
-
-        // Load previous app state (if any).
-        // Note that you must enable the `persistence` feature for this to work.
-        if let Some(storage) = cc.storage {
-            return eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
-        }
-
+    pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
         Default::default()
     }
 }
 
-impl eframe::App for TemplateApp {
-    /// Called by the frame work to save state before shutdown.
-    fn save(&mut self, storage: &mut dyn eframe::Storage) {
-        eframe::set_value(storage, eframe::APP_KEY, self);
+impl TemplateApp {
+    fn options_ui(&mut self, ui: &mut Ui) {
+        let Self { m0, v0, m1, v1 } = self;
+
+        ui.horizontal(|ui| {
+            ui.group(|ui| {
+                ui.vertical(|ui| {
+                    ui.label("Object 1:");
+                    ui.horizontal(|ui| {
+                        ui.label("Mass:");
+                        ui.add(egui::Slider::new(m0, -5.0..=5.0));
+                    });
+                    ui.horizontal(|ui| {
+                        ui.label("Velocity:");
+                        ui.add(egui::Slider::new(v0, -5.0..=5.0));
+                    });
+                });
+            });
+            ui.group(|ui| {
+                ui.vertical(|ui| {
+                    ui.label("Object 2:");
+                    ui.horizontal(|ui| {
+                        ui.label("Mass:");
+                        ui.add(egui::Slider::new(m1, -5.0..=5.0));
+                    });
+                    ui.horizontal(|ui| {
+                        ui.label("Velocity:");
+                        ui.add(egui::Slider::new(v1, -5.0..=5.0));
+                    });
+                });
+            });
+        });
     }
 
-    /// Called each time the UI needs repainting, which may be many times per second.
-    /// Put your widgets into a `SidePanel`, `TopPanel`, `CentralPanel`, `Window` or `Area`.
+    fn preserved_momentum(&self) -> Line {
+        let &Self { m0, v0, m1, v1, .. } = self;
+
+        Line::new(PlotPoints::from_explicit_callback(
+            move |x| {
+                // m0v0 + m1v1 = m0x + m1y
+                // m0v0 + m1v1 - m0x = m1y
+                // (m0v0 + m1v1 - m0x)/m1 = y
+                // m0(v0 - x)/m1 + v1 = y
+                m0 * (v0 - x) / m1 + v1
+            },
+            ..,
+            512,
+        ))
+        .color(Color32::RED)
+        .width(3.)
+    }
+
+    fn preserved_energy(&self) -> (Line, Line) {
+        let &Self { m0, v0, m1, v1, .. } = self;
+
+        // m0v0^2 + m1v1^2 = m0x^2 + m1y^2
+
+        // for y = 0:
+        // d = m0x^2
+        // d/m0 = x^2
+        // x = sqrt(d/m0)
+
+        // to find y given x:
+        // d = m0x^2 + m1y^2
+        // (d - m0x^2)/m1 = y^2
+        // y = sqrt((d - m0x^2)/m1)
+
+        let d = m0 * v0 * v0 + m1 * v1 * v1;
+        // let bound = (d / m0).sqrt();
+
+        let upper = Line::new(PlotPoints::from_explicit_callback(
+            move |x| ((d - m0 * x * x) / m1).sqrt(),
+            // -bound..=bound,
+            ..,
+            512,
+        ))
+        .color(Color32::BLUE)
+        .width(3.);
+        let lower = Line::new(PlotPoints::from_explicit_callback(
+            move |x| -((d - m0 * x * x) / m1).sqrt(),
+            // -bound..=bound,
+            ..,
+            512,
+        ))
+        .color(Color32::BLUE)
+        .width(3.);
+
+        (upper, lower)
+    }
+}
+
+impl eframe::App for TemplateApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        let Self { label, value } = self;
-
-        // Examples of how to create different panels and windows.
-        // Pick whichever suits you.
-        // Tip: a good default choice is to just keep the `CentralPanel`.
-        // For inspiration and more examples, go to https://emilk.github.io/egui
-
-        #[cfg(not(target_arch = "wasm32"))] // no File->Quit on web pages!
-        egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
-            // The top panel is often a good place for a menu bar:
-            egui::menu::bar(ui, |ui| {
-                ui.menu_button("File", |ui| {
-                    if ui.button("Quit").clicked() {
-                        _frame.close();
-                    }
-                });
-            });
-        });
-
-        egui::SidePanel::left("side_panel").show(ctx, |ui| {
-            ui.heading("Side Panel");
-
-            ui.horizontal(|ui| {
-                ui.label("Write something: ");
-                ui.text_edit_singleline(label);
-            });
-
-            ui.add(egui::Slider::new(value, 0.0..=10.0).text("value"));
-            if ui.button("Increment").clicked() {
-                *value += 1.0;
-            }
-
-            ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
-                ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing.x = 0.0;
-                    ui.label("powered by ");
-                    ui.hyperlink_to("egui", "https://github.com/emilk/egui");
-                    ui.label(" and ");
-                    ui.hyperlink_to(
-                        "eframe",
-                        "https://github.com/emilk/egui/tree/master/crates/eframe",
-                    );
-                    ui.label(".");
-                });
-            });
-        });
-
         egui::CentralPanel::default().show(ctx, |ui| {
-            // The central panel the region left after adding TopPanel's and SidePanel's
+            self.options_ui(ui);
 
-            ui.heading("eframe template");
-            ui.hyperlink("https://github.com/emilk/eframe_template");
-            ui.add(egui::github_link_file!(
-                "https://github.com/emilk/eframe_template/blob/master/",
-                "Source code."
-            ));
+            let mut plot = Plot::new("plot");
+            plot = plot.view_aspect(1.0);
+            plot = plot.data_aspect(1.0);
+            plot.show(ui, |plot_ui| {
+                plot_ui.line(self.preserved_momentum());
+                let (upper, lower) = self.preserved_energy();
+                plot_ui.line(upper);
+                plot_ui.line(lower);
+            })
+        });
+
+        #[cfg(debug_assertions)]
+        egui::TopBottomPanel::bottom("bottom_panel").show(ctx, |ui| {
             egui::warn_if_debug_build(ui);
         });
-
-        if false {
-            egui::Window::new("Window").show(ctx, |ui| {
-                ui.label("Windows can be moved by dragging them.");
-                ui.label("They are automatically sized based on contents.");
-                ui.label("You can turn on resizing and scrolling if you like.");
-                ui.label("You would normally chose either panels OR windows.");
-            });
-        }
     }
 }
